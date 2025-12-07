@@ -17,13 +17,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application modules
+# Copy application modules - v11.0 COMPLETE
 COPY config.py .
 COPY utils.py .
 COPY video_processor.py .
 COPY downloader.py .
 COPY uploader.py .
+COPY comparator.py .
 COPY handlers.py .
+COPY handlers_part2.py .
 COPY main.py .
 
 # Create downloads directory with proper permissions
