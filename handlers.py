@@ -1,6 +1,7 @@
 """
 🚀 HANDLERS - HYDROGEN BOMB v11.0
 DUAL MODE SYSTEM: Original + Compare
+✅ FIXED: Compare mode imports
 """
 
 import os
@@ -213,7 +214,7 @@ def setup_handlers(app: Client):
                 )
             
         except Exception as e:
-            logger.error(f"Document processing error: {e}")
+            logger.error(f"Document processing error: {e}", exc_info=True)
             await status.edit_text(f"❌ Error: {str(e)[:100]}")
     
     
@@ -271,6 +272,7 @@ def setup_handlers(app: Client):
         """
         🟢 COMPARE MODE HANDLER
         New in v11.0 - smart comparison
+        ✅ FIXED: Now properly calls perform_comparison
         """
         compare_data = user_data[user_id].get('compare_data', {})
         
@@ -307,11 +309,129 @@ def setup_handlers(app: Client):
                 f"⏳ Please wait..."
             )
             
-            # PERFORM COMPARISON
-            await perform_comparison(
-                client, message, status, user_id,
-                old_items, items, file_path, compare_data
+            # ✅ FIXED: Import and call perform_comparison
+            try:
+                # Run comparison
+                new_links, stats = compare_link_lists(old_items, items)
+                
+                # Call the processing function (defined below)
+                await process_comparison_result(
+                    client, message, status, user_id,
+                    new_links, stats, file_path, compare_data,
+                    old_file_name, file_name
+                )
+                
+            except Exception as e:
+                logger.error(f"Comparison error: {e}", exc_info=True)
+                await status.edit_text(
+                    f"❌ **Comparison Failed**\n\n"
+                    f"Error: {str(e)[:100]}\n\n"
+                    f"Please try again!"
+                )
+                cleanup_compare_data(user_id, compare_data)
+
+
+async def process_comparison_result(
+    client: Client, message: Message, status: Message,
+    user_id: int, new_links: list, stats: dict,
+    new_file_path: str, compare_data: dict,
+    old_file_name: str, new_file_name: str
+):
+    """
+    ✅ PROCESS COMPARISON RESULT
+    Extracted from handlers_part2 and integrated here
+    """
+    try:
+        # Count by type
+        type_counts = {}
+        for item in new_links:
+            ftype = item['type']
+            type_counts[ftype] = type_counts.get(ftype, 0) + 1
+        
+        # Update user data
+        user_data[user_id].update({
+            'items': new_links,  # Only NEW links!
+            'file_path': new_file_path,
+            'step': 'select_range',
+            'mode': 'compare',
+            'comparison_stats': stats
+        })
+        
+        # Check destination
+        destination = await get_destination_channel(user_id)
+        dest_info = ""
+        if destination:
+            dest_info = f"\n🎯 Destination: {destination[1] or destination[0]}\n"
+        
+        # Results
+        if len(new_links) == 0:
+            await status.edit_text(
+                f"🟢 **COMPARISON COMPLETE**\n\n"
+                f"📊 **Statistics:**\n"
+                f"📄 Old File: {stats['total_old']} links\n"
+                f"📄 New File: {stats['total_new']} links\n"
+                f"✅ Common: {stats['common']} links\n"
+                f"🗑️ Removed: {stats['old_only']} links\n\n"
+                f"🎉 **No new links found!**\n"
+                f"All links in new file already exist in old file.\n\n"
+                f"💡 Nothing to download!"
             )
+            
+            # Cleanup
+            cleanup_compare_data(user_id, compare_data)
+            return
+        
+        # Build keyboard
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 Select Range", callback_data="select_range")],
+            [InlineKeyboardButton("⬇️ Download All NEW", callback_data="download_all")]
+        ])
+        
+        type_info = "\n".join([
+            f"{'🎬' if t == 'video' else '🖼️' if t == 'image' else '📄'} {t.title()}s: {c}" 
+            for t, c in type_counts.items()
+        ])
+        
+        await status.edit_text(
+            f"🟢 **COMPARISON COMPLETE!**\n\n"
+            f"📊 **Statistics:**\n"
+            f"📄 Old: {stats['total_old']} links\n"
+            f"📄 New: {stats['total_new']} links\n"
+            f"✅ Common: {stats['common']}\n"
+            f"🆕 **NEW LINKS: {stats['new_only']}** ⭐\n"
+            f"🗑️ Removed: {stats['old_only']}\n\n"
+            f"🎯 **NEW LINKS DETECTED:**\n"
+            f"{type_info}\n"
+            f"📦 Total NEW: {len(new_links)}{dest_info}\n\n"
+            f"🚀 Ready to download NEW links only!",
+            reply_markup=kb
+        )
+        
+        # Cleanup old file
+        old_file_path = compare_data.get('old_file_path')
+        if old_file_path and os.path.exists(old_file_path):
+            try:
+                os.remove(old_file_path)
+            except:
+                pass
+        
+    except Exception as e:
+        logger.error(f"Result processing error: {e}", exc_info=True)
+        await status.edit_text(
+            f"❌ **Processing Failed**\n\n"
+            f"Error: {str(e)[:100]}"
+        )
+        cleanup_compare_data(user_id, compare_data)
+
+
+def cleanup_compare_data(user_id: int, compare_data: dict):
+    """Cleanup comparison temporary data"""
+    try:
+        old_file_path = compare_data.get('old_file_path')
+        if old_file_path and os.path.exists(old_file_path):
+            os.remove(old_file_path)
+    except:
+        pass
     
-    # Continue with rest of handlers...
-    # (Part 2 will have the remaining handlers)
+    if user_id in user_data and 'compare_data' in user_data[user_id]:
+        del user_data[user_id]['compare_data']
