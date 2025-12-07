@@ -11,6 +11,12 @@ PORT = int(os.getenv("PORT", "10000"))
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
+# v11.0 - Mode Configuration
+BOT_MODES = {
+    "original": "Original Mode - Process all links",
+    "compare": "Compare Mode - Process only new links"
+}
+
 # Quality Settings - ADVANCED ENCODING
 QUALITY_SETTINGS = {
     "360p": {
@@ -39,9 +45,16 @@ QUALITY_SETTINGS = {
     }
 }
 
-# Supported File Types
+# Supported File Types - v11.1 ENHANCED
 SUPPORTED_TYPES = {
-    'video': ['.m3u8', '.mpd', '.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.webm', '.ts'],
+    'video': [
+        # Streaming formats
+        '.m3u8', '.mpd', '/manifest.', 'master.m3u8', '/playlist.m3u8',
+        # Direct video formats
+        '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', 
+        '.webm', '.m4v', '.3gp', '.ogv', '.ts', '.mts', 
+        '.m2ts', '.vob', '.divx', '.xvid'
+    ],
     'image': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'],
     'document': ['.pdf', '.doc', '.docx', '.txt', '.zip', '.rar']
 }
@@ -75,26 +88,21 @@ THUMBNAIL_TIME = "00:00:05"
 THUMBNAIL_SIZE = "640:360"
 THUMBNAIL_QUALITY = 2
 
-# ==========================================
-# 🚀 FFMPEG-BASED SPLIT SETTINGS (MOST RELIABLE)
-# ==========================================
-
+# File Split Settings
 TELEGRAM_FILE_LIMIT = 2000  # 2GB in MB
 SAFE_SPLIT_SIZE = 1900  # Split at 1.9GB (100MB buffer)
 MIN_PART_SIZE = 100  # Minimum 100MB per part
 
 # FFMPEG split method (copy codec - INSTANT splitting)
-USE_FFMPEG_SPLIT = True  # Most reliable for large files
-SPLIT_METHOD = 'copy'  # 'copy' = fast, 'encode' = slower but compatible
-
-# ==========================================
+USE_FFMPEG_SPLIT = True
+SPLIT_METHOD = 'copy'
 
 # Text Overlay Settings
 WATERMARK_ENABLED = True
 WATERMARK_FONT = "Arial"
 WATERMARK_FONT_SIZE = 48
 WATERMARK_COLOR = "white"
-WATERMARK_POSITION = "bottom_right"  # top_left, top_right, bottom_left, bottom_right, center
+WATERMARK_POSITION = "bottom_right"
 WATERMARK_OPACITY = 0.8
 
 # Progress Update Settings
@@ -106,3 +114,8 @@ SESSION_TIMEOUT = 3600  # 1 hour
 
 # Destination Channel Settings
 DESTINATION_STORAGE_FILE = Path("destination_channels.json")
+
+# v11.0 - Compare Mode Settings
+COMPARE_CACHE_DIR = Path("compare_cache")
+COMPARE_CACHE_DIR.mkdir(exist_ok=True)
+COMPARE_TIMEOUT = 300  # 5 minutes for compare operations
