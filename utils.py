@@ -11,16 +11,48 @@ logger = logging.getLogger(__name__)
 
 
 def get_file_type(url: str) -> str:
-    """Determine file type from URL with enhanced detection"""
+    """
+    🆕 v11.1 - Enhanced file type detection
+    Now properly detects ALL video formats!
+    """
     url_lower = url.lower()
     
-    # Check for YouTube links
+    # Check for YouTube links first
     if is_youtube_url(url):
         return 'video'
     
+    # 🆕 v11.1 - Expanded video detection
+    # Streaming formats
+    streaming_video = ['.m3u8', '.mpd', '/manifest.', 'master.m3u8', '/playlist.m3u8']
+    for fmt in streaming_video:
+        if fmt in url_lower:
+            return 'video'
+    
+    # Direct video formats
+    direct_video = [
+        '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', 
+        '.webm', '.m4v', '.3gp', '.ogv', '.ts', '.mts', 
+        '.m2ts', '.vob', '.divx', '.xvid'
+    ]
+    for fmt in direct_video:
+        if fmt in url_lower:
+            return 'video'
+    
+    # Image formats
     for ftype, extensions in SUPPORTED_TYPES.items():
-        if any(ext in url_lower for ext in extensions):
-            return ftype
+        if ftype == 'image':
+            if any(ext in url_lower for ext in extensions):
+                return 'image'
+    
+    # Document formats
+    for ftype, extensions in SUPPORTED_TYPES.items():
+        if ftype == 'document':
+            if any(ext in url_lower for ext in extensions):
+                return 'document'
+    
+    # Default: If has video-like path, consider it video
+    if any(indicator in url_lower for indicator in ['/video/', '/videos/', 'stream', 'watch']):
+        return 'video'
     
     return 'unknown'
 
@@ -45,6 +77,15 @@ def parse_content(text: str) -> List[Dict]:
                         'url': url, 
                         'type': file_type
                     })
+                else:
+                    # 🆕 v11.1 - Try to detect from URL pattern
+                    if any(ext in url.lower() for ext in ['.mp4', '.mkv', '.avi', 'video']):
+                        logger.info(f"🎬 Unknown type treated as video: {url[:50]}...")
+                        items.append({
+                            'title': title,
+                            'url': url,
+                            'type': 'video'
+                        })
     
     return items
 
@@ -176,6 +217,36 @@ def is_unsupported_platform(url: str) -> bool:
     return any(platform in url_lower for platform in unsupported)
 
 
+def is_direct_video_link(url: str) -> bool:
+    """
+    🆕 v11.1 - Check if URL is direct video link
+    Returns True for .mp4, .mkv, etc.
+    """
+    url_lower = url.lower()
+    
+    direct_extensions = [
+        '.mp4', '.mkv', '.avi', '.mov', '.wmv', 
+        '.flv', '.webm', '.m4v', '.3gp', '.ogv'
+    ]
+    
+    return any(ext in url_lower for ext in direct_extensions)
+
+
+def is_streaming_video_link(url: str) -> bool:
+    """
+    🆕 v11.1 - Check if URL is streaming video link
+    Returns True for .m3u8, .mpd, etc.
+    """
+    url_lower = url.lower()
+    
+    streaming_formats = [
+        '.m3u8', '.mpd', '/manifest.', 'master.m3u8', 
+        '/playlist.m3u8', '.ts', '/stream/'
+    ]
+    
+    return any(fmt in url_lower for fmt in streaming_formats)
+
+
 def extract_channel_id(text: str) -> Optional[int]:
     """
     Extract channel/group ID from:
@@ -275,19 +346,35 @@ async def clear_destination_channel(user_id: int):
 
 
 def get_video_extension(url: str) -> str:
-    """Get appropriate video extension from URL"""
+    """
+    🆕 v11.1 - Enhanced video extension detection
+    Returns appropriate extension based on URL
+    """
     url_lower = url.lower()
     
-    if '.m3u8' in url_lower or '/m3u8' in url_lower:
+    # Direct video files
+    direct_extensions = {
+        '.mp4': '.mp4',
+        '.mkv': '.mkv',
+        '.avi': '.avi',
+        '.mov': '.mov',
+        '.wmv': '.wmv',
+        '.flv': '.flv',
+        '.webm': '.webm',
+        '.m4v': '.mp4',
+        '.3gp': '.3gp',
+    }
+    
+    for ext, return_ext in direct_extensions.items():
+        if ext in url_lower:
+            return return_ext
+    
+    # Streaming formats default to .mp4
+    if any(fmt in url_lower for fmt in ['.m3u8', '.mpd', '/manifest.']):
         return '.mp4'
-    elif '.mpd' in url_lower:
-        return '.mp4'
-    elif '.mkv' in url_lower:
-        return '.mkv'
-    elif '.webm' in url_lower:
-        return '.webm'
-    else:
-        return '.mp4'
+    
+    # Default
+    return '.mp4'
 
 
 def estimate_download_time(file_size_mb: float, speed_mbps: float) -> int:
@@ -310,3 +397,29 @@ def validate_url(url: str) -> bool:
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     
     return url_pattern.match(url) is not None
+
+
+def get_video_type_description(url: str) -> str:
+    """
+    🆕 v11.1 - Get human-readable video type
+    """
+    url_lower = url.lower()
+    
+    if '.m3u8' in url_lower:
+        return "HLS Stream (M3U8)"
+    elif '.mpd' in url_lower:
+        return "DASH Stream (MPD)"
+    elif '.mp4' in url_lower:
+        return "MP4 Video"
+    elif '.mkv' in url_lower:
+        return "MKV Video"
+    elif '.avi' in url_lower:
+        return "AVI Video"
+    elif '.mov' in url_lower:
+        return "MOV Video"
+    elif '.webm' in url_lower:
+        return "WEBM Video"
+    elif '.flv' in url_lower:
+        return "FLV Video"
+    else:
+        return "Video File"
